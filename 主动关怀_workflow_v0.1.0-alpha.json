@@ -1,0 +1,54 @@
+{
+  "name": "主动关怀",
+  "version": "v0.1.0-alpha",
+  "author": "user",
+  "createdAt": "2026-07-19",
+  "description": "智能关怀系统：定时检测用户状态，在合适时机发送关怀消息。支持夜间免打扰、随机触发率、屏幕状态检测、前台应用分类识别等功能。",
+  "workflow": {
+    "id": "e7da21ae-5085-4c14-a756-af5507223067",
+    "name": "主动关怀",
+    "description": "智能关怀系统：定时检测用户状态，在合适时机发送关怀消息。支持夜间免打扰、随机触发率、屏幕状态检测、前台应用分类识别、截图分析等功能。",
+    "nodes": [
+      {"id": "trigger", "type": "trigger", "name": "定时触发", "triggerType": "schedule", "triggerConfig": {"schedule_type": "interval", "interval_ms": "900000", "repeat": "true", "enabled": "true"}},
+      {"id": "random_gen", "type": "extract", "name": "生成随机数", "mode": "RANDOM_INT", "randomMin": 1, "randomMax": 5},
+      {"id": "cond_random", "type": "condition", "name": "随机数判断", "left": {"nodeId": "random_gen"}, "operator": "GTE", "right": 4},
+      {"id": "get_time", "type": "execute", "name": "获取当前时间", "actionType": "daily_life:get_current_date", "actionConfig": {"format": "long"}},
+      {"id": "extract_hour", "type": "extract", "name": "提取小时数", "source": {"nodeId": "get_time"}, "mode": "JSON", "expression": "$.data.time.hours"},
+      {"id": "time_ge_23", "type": "condition", "name": "时间大于等于23点", "left": {"nodeId": "extract_hour"}, "operator": "GTE", "right": 23},
+      {"id": "time_lt_7", "type": "condition", "name": "时间小于7点", "left": {"nodeId": "extract_hour"}, "operator": "LT", "right": 7},
+      {"id": "cond_night", "type": "logic", "name": "夜间免打扰判断", "operator": "OR"},
+      {"id": "get_chat_status", "type": "execute", "name": "获取对话状态", "actionType": "extended_chat:agent_status", "actionConfig": {"chat_id": "current"}},
+      {"id": "cond_chat_idle", "type": "condition", "name": "对话空闲判断", "left": {"nodeId": "get_chat_status"}, "operator": "CONTAINS", "right": "idle"},
+      {"id": "get_device_info", "type": "execute", "name": "获取设备状态", "actionType": "daily_life:device_status"},
+      {"id": "cond_screen", "type": "condition", "name": "屏幕亮起判断", "left": {"nodeId": "get_device_info"}, "operator": "CONTAINS", "right": "screenOn"},
+      {"id": "get_fg_app", "type": "execute", "name": "获取前台应用并分类", "actionType": "super_admin:shell", "actionConfig": {"command": "pkg=$(dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|mResumedActivity' | head -1 | sed 's/.*\\[.*\\] //' | cut -d'/' -f1); study='zuoyebang|beike|buubei|tianxuewang|sxew|note|notion|wps|office|chaoxing|study'; fun='douyin|aweme|kuaishou|bilibili|jianying|xiangtu|meitu|meituan|xianyu|taobao|game'; if echo \"$pkg\" | grep -qiE \"$study\"; then echo 'TYPE:STUDY'; elif echo \"$pkg\" | grep -qiE \"$fun\"; then echo 'TYPE:ENTERTAINMENT'; else echo 'TYPE:NEUTRAL'; fi"}},
+      {"id": "check_study", "type": "condition", "name": "是否学习类应用", "left": {"nodeId": "get_fg_app"}, "operator": "CONTAINS", "right": "TYPE:STUDY"},
+      {"id": "check_entertainment", "type": "condition", "name": "是否娱乐类应用", "left": {"nodeId": "get_fg_app"}, "operator": "CONTAINS", "right": "TYPE:ENTERTAINMENT"},
+      {"id": "send_care", "type": "execute", "name": "发送关怀消息", "actionType": "daily_life:wechat_send_message", "actionConfig": {"message": "休息一会吧，别太累了。"}}
+    ],
+    "connections": [
+      {"sourceNodeId": "trigger", "targetNodeId": "random_gen", "condition": "on_success"},
+      {"sourceNodeId": "random_gen", "targetNodeId": "cond_random", "condition": "on_success"},
+      {"sourceNodeId": "cond_random", "targetNodeId": "get_time", "condition": "true"},
+      {"sourceNodeId": "get_time", "targetNodeId": "extract_hour", "condition": "on_success"},
+      {"sourceNodeId": "extract_hour", "targetNodeId": "time_ge_23", "condition": "on_success"},
+      {"sourceNodeId": "extract_hour", "targetNodeId": "time_lt_7", "condition": "on_success"},
+      {"sourceNodeId": "time_ge_23", "targetNodeId": "cond_night", "condition": "true"},
+      {"sourceNodeId": "time_lt_7", "targetNodeId": "cond_night", "condition": "true"},
+      {"sourceNodeId": "cond_night", "targetNodeId": "get_chat_status", "condition": "false"},
+      {"sourceNodeId": "get_chat_status", "targetNodeId": "cond_chat_idle", "condition": "on_success"},
+      {"sourceNodeId": "cond_chat_idle", "targetNodeId": "get_device_info", "condition": "true"},
+      {"sourceNodeId": "get_device_info", "targetNodeId": "cond_screen", "condition": "on_success"},
+      {"sourceNodeId": "cond_screen", "targetNodeId": "get_fg_app", "condition": "true"},
+      {"sourceNodeId": "get_fg_app", "targetNodeId": "check_study", "condition": "on_success"},
+      {"sourceNodeId": "check_study", "targetNodeId": "check_entertainment", "condition": "false"},
+      {"sourceNodeId": "check_entertainment", "targetNodeId": "send_care", "condition": "true"}
+    ]
+  },
+  "statistics": {
+    "totalExecutions": 134,
+    "successfulExecutions": 80,
+    "failedExecutions": 54,
+    "successRate": "59.7%"
+  }
+}
